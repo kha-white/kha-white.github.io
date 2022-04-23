@@ -1,17 +1,58 @@
 let num_pages = -1;
-let page_idx = 0;
-let page2_idx = -1;
-let hasCover = false;
-
 let pc = document.getElementById('pagesContainer');
 let r = document.querySelector(':root');
 let pz;
+let showAboutOnStart = false;
 
-let r2l = true;
-let singlePageView = false;
-let ctrlToPan = false;
+let storageKey = "manga-ocr-overlay_" + window.location.pathname;
+
+let defaultState = {
+    page_idx: 0,
+    page2_idx: -1,
+    hasCover: false,
+    r2l: true,
+    singlePageView: false,
+    ctrlToPan: false,
+    textBoxBorders: false,
+    editableText: false,
+    displayOCR: true,
+    fontSize: "auto",
+    eInkMode: false,
+    defaultZoomMode: "fit to screen",
+};
+
+let state = JSON.parse(JSON.stringify(defaultState));
+
+function saveState() {
+    localStorage.setItem(storageKey, JSON.stringify(state));
+}
+
+function loadState() {
+    let newState = localStorage.getItem(storageKey)
+
+    if (newState !== null) {
+        state = JSON.parse(newState);
+        updateUI();
+    }
+
+    updateProperties();
+}
+
+function updateUI() {
+    document.getElementById("menuR2l").checked = state.r2l;
+    document.getElementById("menuCtrlToPan").checked = state.ctrlToPan;
+    document.getElementById("menuDoublePageView").checked = !state.singlePageView;
+    document.getElementById("menuHasCover").checked = state.hasCover;
+    document.getElementById("menuTextBoxBorders").checked = state.textBoxBorders;
+    document.getElementById("menuEditableText").checked = state.editableText;
+    document.getElementById("menuDisplayOCR").checked = state.displayOCR;
+    document.getElementById('menuFontSize').value = state.fontSize;
+    document.getElementById('menuEInkMode').checked = state.eInkMode;
+    document.getElementById('menuDefaultZoom').value = state.defaultZoomMode;
+}
 
 document.addEventListener('DOMContentLoaded', function () {
+    loadState();
     num_pages = document.getElementsByClassName("page").length;
 
     pz = panzoom(pc, {
@@ -25,7 +66,7 @@ document.addEventListener('DOMContentLoaded', function () {
         beforeMouseDown: function (e) {
             let shouldIgnore = disablePanzoomOnElement(e.target) ||
                 (e.target.closest('.textBox') !== null) ||
-                (ctrlToPan && !e.ctrlKey);
+                (state.ctrlToPan && !e.ctrlKey);
             return shouldIgnore;
         },
 
@@ -49,12 +90,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     });
 
-    updatePage(page_idx);
-    fitToScreen();
+    updatePage(state.page_idx);
 
-    document.getElementById('popupAbout').style.display = 'block';
-    document.getElementById('dimOverlay').style.display = 'initial';
-    pz.pause();
+    if (showAboutOnStart) {
+        document.getElementById('popupAbout').style.display = 'block';
+        document.getElementById('dimOverlay').style.display = 'initial';
+        pz.pause();
+    }
 
 }, false);
 
@@ -62,54 +104,102 @@ function disablePanzoomOnElement(element) {
     return document.getElementById('topMenu').contains(element);
 }
 
-document.getElementById('menuR2l').addEventListener('click', function () {
-    r2l = document.getElementById("menuR2l").checked;
-    updatePage(page_idx);
-}, false);
-
-document.getElementById('menuCtrlToPan').addEventListener('click', function () {
-    ctrlToPan = document.getElementById("menuCtrlToPan").checked;
-}, false);
-
-document.getElementById('menuDoublePageView').addEventListener('click', function () {
-    singlePageView = !document.getElementById("menuDoublePageView").checked;
-    updatePage(page_idx);
-}, false);
-
-document.getElementById('menuHasCover').addEventListener('click', function () {
-    hasCover = document.getElementById("menuHasCover").checked;
-    updatePage(page_idx);
-}, false);
-
-document.getElementById('menuTextBoxBorders').addEventListener('click', function () {
-    if (document.getElementById("menuTextBoxBorders").checked) {
+function updateProperties() {
+    if (state.textBoxBorders) {
         r.style.setProperty('--textBoxBorderHoverColor', 'rgba(237, 28, 36, 0.3)');
     } else {
         r.style.setProperty('--textBoxBorderHoverColor', 'rgba(0, 0, 0, 0)');
     }
-}, false);
 
-document.getElementById('menuEditableText').addEventListener('click', function () {
-    pc.contentEditable = document.getElementById("menuEditableText").checked;
-}, false);
+    pc.contentEditable = state.editableText;
 
-document.getElementById('menuDisplayOCR').addEventListener('click', function () {
-    if (document.getElementById("menuDisplayOCR").checked) {
+    if (state.displayOCR) {
         r.style.setProperty('--textBoxDisplay', 'initial');
     } else {
         r.style.setProperty('--textBoxDisplay', 'none');
     }
+
+    if (state.fontSize === 'auto') {
+        pc.classList.remove('textBoxFontSizeOverride');
+    } else {
+        r.style.setProperty('--textBoxFontSize', state.fontSize + 'pt');
+        pc.classList.add('textBoxFontSizeOverride');
+    }
+
+    if (state.eInkMode) {
+        document.getElementById('topMenu').classList.add("notransition");
+    } else {
+        document.getElementById('topMenu').classList.remove("notransition");
+    }
+}
+
+document.getElementById('menuR2l').addEventListener('click', function () {
+    state.r2l = document.getElementById("menuR2l").checked;
+    saveState();
+    updatePage(state.page_idx);
 }, false);
 
-document.getElementById('menuResetZoom').addEventListener('click', resetZoom, false);
-document.getElementById('menuFitToWidth').addEventListener('click', fitToWidth, false);
-document.getElementById('menuFitToScreen').addEventListener('click', fitToScreen, false);
+document.getElementById('menuCtrlToPan').addEventListener('click', function () {
+    state.ctrlToPan = document.getElementById("menuCtrlToPan").checked;
+    saveState();
+}, false);
+
+document.getElementById('menuDoublePageView').addEventListener('click', function () {
+    state.singlePageView = !document.getElementById("menuDoublePageView").checked;
+    saveState();
+    updatePage(state.page_idx);
+}, false);
+
+document.getElementById('menuHasCover').addEventListener('click', function () {
+    state.hasCover = document.getElementById("menuHasCover").checked;
+    saveState();
+    updatePage(state.page_idx);
+}, false);
+
+document.getElementById('menuTextBoxBorders').addEventListener('click', function () {
+    state.textBoxBorders = document.getElementById("menuTextBoxBorders").checked;
+    saveState();
+    updateProperties();
+}, false);
+
+document.getElementById('menuEditableText').addEventListener('click', function () {
+    state.editableText = document.getElementById("menuEditableText").checked;
+    saveState();
+    updateProperties();
+}, false);
+
+document.getElementById('menuDisplayOCR').addEventListener('click', function () {
+    state.displayOCR = document.getElementById("menuDisplayOCR").checked;
+    saveState();
+    updateProperties();
+}, false);
+
+document.getElementById('menuEInkMode').addEventListener('click', function () {
+    state.eInkMode = document.getElementById("menuEInkMode").checked;
+    saveState();
+    updateProperties();
+    if (state.eInkMode) {
+        eInkRefresh();
+    }
+}, false);
+
+document.getElementById('menuOriginalSize').addEventListener('click', zoomOriginal, false);
+document.getElementById('menuFitToWidth').addEventListener('click', zoomFitToWidth, false);
+document.getElementById('menuFitToScreen').addEventListener('click', zoomFitToScreen, false);
 document.getElementById('menuFullScreen').addEventListener('click', toggleFullScreen, false);
 
 document.getElementById('menuAbout').addEventListener('click', function () {
     document.getElementById('popupAbout').style.display = 'block';
     document.getElementById('dimOverlay').style.display = 'initial';
     pz.pause();
+}, false);
+
+document.getElementById('menuReset').addEventListener('click', function () {
+    let page_idx = state.page_idx;
+    state = JSON.parse(JSON.stringify(defaultState));
+    updateUI();
+    updatePage(page_idx);
+    updateProperties();
 }, false);
 
 document.getElementById('dimOverlay').addEventListener('click', function () {
@@ -119,18 +209,32 @@ document.getElementById('dimOverlay').addEventListener('click', function () {
 }, false);
 
 document.getElementById('menuFontSize').addEventListener('change', (e) => {
-    let value = e.target.value;
-    if (value === 'auto') {
-        pc.classList.remove('textBoxFontSizeOverride');
-    } else {
-        r.style.setProperty('--textBoxFontSize', value + 'pt');
-        pc.classList.add('textBoxFontSizeOverride');
-    }
+    state.fontSize = e.target.value;
+    saveState();
+    updateProperties();
 });
+
+document.getElementById('menuDefaultZoom').addEventListener('change', (e) => {
+    state.defaultZoomMode = e.target.value;
+    saveState();
+});
+
 
 document.getElementById('pageIdxInput').addEventListener('change', (e) => {
     updatePage(e.target.value - 1);
 })
+
+document.getElementById('buttonHideMenu').addEventListener('click', function () {
+    // document.getElementById('topMenu').style.display = "none";
+    document.getElementById('showMenuA').style.display = "inline-block";
+    document.getElementById('topMenu').classList.add("hidden");
+}, false);
+
+document.getElementById('showMenuA').addEventListener('click', function () {
+    // document.getElementById('topMenu').style.display = "initial";
+    document.getElementById('showMenuA').style.display = "none";
+    document.getElementById('topMenu').classList.remove("hidden");
+}, false);
 
 document.getElementById('buttonLeftLeft').addEventListener('click', inputLeftLeft, false);
 document.getElementById('buttonLeft').addEventListener('click', inputLeft, false);
@@ -164,16 +268,16 @@ document.addEventListener("keydown", function onEvent(e) {
             break;
 
         case "0":
-            fitToScreen();
+            zoomDefault();
             break;
     }
 });
 
 function isPageFirstOfPair(page_idx) {
-    if (singlePageView) {
+    if (state.singlePageView) {
         return true;
     } else {
-        if (hasCover) {
+        if (state.hasCover) {
             return (page_idx === 0 || (page_idx % 2 === 1));
         } else {
             return page_idx % 2 === 0;
@@ -186,19 +290,24 @@ function getPage(page_idx) {
 }
 
 function getOffsetLeft() {
-    return 5;
+    return 0;
 }
 
 function getOffsetTop() {
-    return document.getElementById('topMenu').getBoundingClientRect().bottom + 2;
+    let offset = 0;
+    let menu = document.getElementById('topMenu');
+    if (!menu.classList.contains("hidden")) {
+        offset += menu.getBoundingClientRect().bottom + 10;
+    }
+    return offset;
 }
 
 function getOffsetRight() {
-    return 20;
+    return 0;
 }
 
 function getOffsetBottom() {
-    return 20;
+    return 0;
 }
 
 function getScreenWidth() {
@@ -209,73 +318,114 @@ function getScreenHeight() {
     return window.innerHeight - getOffsetTop() - getOffsetBottom();
 }
 
-function resetPan() {
+function panAlign(align_x, align_y) {
     let scale = pz.getTransform().scale;
-    let x = getOffsetLeft() + (getScreenWidth() - pc.offsetWidth * scale) / 2;
-    let y = getOffsetTop() + (getScreenHeight() - pc.offsetHeight * scale) / 2;
+    let x;
+    let y;
+
+    switch (align_x) {
+        case "left":
+            x = getOffsetLeft();
+            break;
+        case "center":
+            x = getOffsetLeft() + (getScreenWidth() - pc.offsetWidth * scale) / 2;
+            break;
+        case "right":
+            x = getOffsetLeft() + (getScreenWidth() - pc.offsetWidth * scale);
+            break;
+    }
+
+    switch (align_y) {
+        case "top":
+            y = getOffsetTop();
+            break;
+        case "center":
+            y = getOffsetTop() + (getScreenHeight() - pc.offsetHeight * scale) / 2;
+            break;
+        case "bottom":
+            y = getOffsetTop() + (getScreenHeight() - pc.offsetHeight * scale);
+            break;
+    }
+
     pz.moveTo(x, y);
 }
 
-function resetZoom() {
-    pz.moveTo(0, 0);
+
+function zoomOriginal() {
     pz.zoomTo(0, 0, 1 / pz.getTransform().scale);
-    resetPan();
+    panAlign("center", "center");
 }
 
-function fitToWidth() {
-    pz.moveTo(0, 0);
+function zoomFitToWidth() {
     let scale = (1 / pz.getTransform().scale) * (getScreenWidth() / pc.offsetWidth);
     pz.zoomTo(0, 0, scale);
-    resetPan();
+    panAlign("center", "top");
 }
 
-function fitToScreen() {
-    pz.moveTo(0, 0);
+function zoomFitToScreen() {
     let scale_x = getScreenWidth() / pc.offsetWidth;
     let scale_y = getScreenHeight() / pc.offsetHeight;
     let scale = (1 / pz.getTransform().scale) * Math.min(scale_x, scale_y);
     pz.zoomTo(0, 0, scale);
-    resetPan();
+    panAlign("center", "center");
+}
+
+function zoomDefault() {
+    switch (state.defaultZoomMode) {
+        case "fit to screen":
+            zoomFitToScreen();
+            break;
+        case "fit to width":
+            zoomFitToWidth();
+            break;
+        case "original size":
+            zoomOriginal();
+            break;
+    }
 }
 
 function updatePage(new_page_idx) {
     new_page_idx = Math.min(Math.max(new_page_idx, 0), num_pages - 1);
 
-    getPage(page_idx).style.display = "none";
+    getPage(state.page_idx).style.display = "none";
 
-    if (page2_idx >= 0) {
-        getPage(page2_idx).style.display = "none";
+    if (state.page2_idx >= 0) {
+        getPage(state.page2_idx).style.display = "none";
     }
 
     if (isPageFirstOfPair(new_page_idx)) {
-        page_idx = new_page_idx;
+        state.page_idx = new_page_idx;
     } else {
-        page_idx = new_page_idx - 1;
+        state.page_idx = new_page_idx - 1;
     }
 
-    getPage(page_idx).style.display = "inline-block";
-    getPage(page_idx).style.order = 2;
+    getPage(state.page_idx).style.display = "inline-block";
+    getPage(state.page_idx).style.order = 2;
 
-    if (!singlePageView && page_idx < num_pages - 1 && !isPageFirstOfPair(page_idx + 1)) {
-        page2_idx = page_idx + 1;
-        getPage(page2_idx).style.display = "inline-block";
+    if (!state.singlePageView && state.page_idx < num_pages - 1 && !isPageFirstOfPair(state.page_idx + 1)) {
+        state.page2_idx = state.page_idx + 1;
+        getPage(state.page2_idx).style.display = "inline-block";
 
-        if (r2l) {
-            getPage(page2_idx).style.order = 1;
+        if (state.r2l) {
+            getPage(state.page2_idx).style.order = 1;
         } else {
-            getPage(page2_idx).style.order = 3;
+            getPage(state.page2_idx).style.order = 3;
         }
 
     } else {
-        page2_idx = -1;
+        state.page2_idx = -1;
     }
 
-    document.getElementById("pageIdxInput").value = page_idx + 1;
+    document.getElementById("pageIdxInput").value = state.page_idx + 1;
 
-    page2_txt = (page2_idx >= 0) ? ',' + (page2_idx + 1) : "";
-    document.getElementById("pageIdxDisplay").innerHTML = (page_idx + 1) + page2_txt + '/' + num_pages;
+    page2_txt = (state.page2_idx >= 0) ? ',' + (state.page2_idx + 1) : "";
+    document.getElementById("pageIdxDisplay").innerHTML = (state.page_idx + 1) + page2_txt + '/' + num_pages;
 
-    fitToScreen();
+    saveState();
+    zoomDefault();
+    if (state.eInkMode) {
+        eInkRefresh();
+    }
 }
 
 function firstPage() {
@@ -287,15 +437,15 @@ function lastPage() {
 }
 
 function prevPage() {
-    updatePage(page_idx - (singlePageView ? 1 : 2));
+    updatePage(state.page_idx - (state.singlePageView ? 1 : 2));
 }
 
 function nextPage() {
-    updatePage(page_idx + (singlePageView ? 1 : 2));
+    updatePage(state.page_idx + (state.singlePageView ? 1 : 2));
 }
 
 function inputLeftLeft() {
-    if (r2l) {
+    if (state.r2l) {
         lastPage();
     } else {
         firstPage();
@@ -303,7 +453,7 @@ function inputLeftLeft() {
 }
 
 function inputLeft() {
-    if (r2l) {
+    if (state.r2l) {
         nextPage();
     } else {
         prevPage();
@@ -311,7 +461,7 @@ function inputLeft() {
 }
 
 function inputRight() {
-    if (r2l) {
+    if (state.r2l) {
         prevPage();
     } else {
         nextPage();
@@ -319,7 +469,7 @@ function inputRight() {
 }
 
 function inputRightRight() {
-    if (r2l) {
+    if (state.r2l) {
         firstPage();
     } else {
         lastPage();
@@ -327,16 +477,24 @@ function inputRightRight() {
 }
 
 function toggleFullScreen() {
-   var doc = window.document;
-   var docEl = doc.documentElement;
+    var doc = window.document;
+    var docEl = doc.documentElement;
 
-   var requestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
-   var cancelFullScreen = doc.exitFullscreen || doc.mozCancelFullScreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
+    var requestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
+    var cancelFullScreen = doc.exitFullscreen || doc.mozCancelFullScreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
 
-   if(!doc.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
-       requestFullScreen.call(docEl);
-   }
-   else {
-       cancelFullScreen.call(doc);
-   }
+    if (!doc.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
+        requestFullScreen.call(docEl);
+    } else {
+        cancelFullScreen.call(doc);
+    }
+}
+
+function eInkRefresh() {
+    pc.classList.add("inverted");
+    document.body.style.backgroundColor = "black";
+    setTimeout(function () {
+        pc.classList.remove("inverted");
+        document.body.style.backgroundColor = r.style.getPropertyValue("--colorBackground");
+    }, 300);
 }
